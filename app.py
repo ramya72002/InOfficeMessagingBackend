@@ -23,13 +23,13 @@ EMAIL_PASSWORD = os.getenv('EMAIL_PASS')  # Your email password from environment
 mongo_uri = os.getenv('MONGO_URI')
 # MongoDB setup
 client = MongoClient(mongo_uri)
-db = client.HealthLocker
+db = client.InOfficeMessaging
 users_collection = db.users
 
 
 def send_otp_email(email, otp):
     try:
-        subject = "Your OTP for HealthLocker"
+        subject = "Your OTP for InOfficeMessaging"
         body = f"Your OTP is {otp} "
 
         # Set up the MIME
@@ -68,10 +68,11 @@ def signup():
         if user_data:
             name = user_data.get('name')
             email = user_data.get('email')
+            company_name = user_data.get('company_name')  # Capture company name
 
-            # Ensure name and email are provided
-            if not email or not name:
-                return jsonify({'error': 'Name and email are required.'}), 400
+            # Ensure name, email, and company name are provided
+            if not name or not email or not company_name:
+                return jsonify({'error': 'Name, email, and company name are required.'}), 400
 
             # Check if user with the email already exists
             existing_user = users_collection.find_one({'email': email})
@@ -89,9 +90,10 @@ def signup():
             result = users_collection.insert_one({
                 'name': name,
                 'email': email,
+                'company_name': company_name,  # Save company name
                 'otp': otp_code,
                 'signup_date': datetime.now(pytz.utc),  # Add timestamp for when the user signs up
-             })
+            })
 
             # Return success response with the new user's ID
             return jsonify({'success': True, 'user_id': str(result.inserted_id), 'message': 'OTP sent to your email.'}), 201
@@ -99,6 +101,7 @@ def signup():
             return jsonify({'error': 'Invalid data format.'}), 400
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
 
 @app.route('/verify-otp', methods=['POST'])
 def verify_otp():
@@ -201,17 +204,39 @@ def post_record():
 def get_records():
     try:
         email = request.args.get('email')  # Get email from query params
+        print(f"Received request for email: {email}")  # Log the received email
 
         # Fetch the user by email
-        user = users_collection.find_one({'email': email}, {'_id': 0, 'records': 1})
+        user = users_collection.find_one({'email': email}, {'_id': 0})
+        print(user)
 
-        if user and 'records' in user:
-            return jsonify({'records': user['records']}), 200
-        else:
-            return jsonify({'error': 'No records found for this user.'}), 404
+        if user is None:
+            return jsonify({'error': 'User not found.'}), 404  # More specific error for user not found
+      
+        return jsonify(user), 200
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+    
+@app.route('/get_forms_company_name', methods=['GET'])
+def get_forms_by_company_name():
+    try:
+        # Get query parameters from the request
+        company_name = request.args.get('company_name')  # Fetch 'group' parameter from the query string
+
+        # Build the filter condition dynamically
+        filter_condition = {}
+        if company_name:
+            filter_condition['company_name'] = company_name
+
+        # Fetch documents matching the dynamic filter condition
+        records = list(users_collection.find(filter_condition, {'_id': 0}))  # Exclude the MongoDB ID field
+
+        return jsonify(records), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=80)
