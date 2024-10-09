@@ -110,13 +110,16 @@ def signup():
     try:
         user_data = request.get_json()
         if user_data:
+            # Capture the necessary fields
             name = user_data.get('name')
             email = user_data.get('email')
-            company_name = user_data.get('company_name')  # Capture company name
+            company_name = user_data.get('company_name')
+            phone = user_data.get('phone')  # Capture phone number
+            provider = user_data.get('provider')  # Capture provider
 
-            # Ensure name, email, and company name are provided
-            if not name or not email or not company_name:
-                return jsonify({'error': 'Name, email, and company name are required.'}), 400
+            # Ensure all fields are provided
+            if not name or not email or not company_name or not phone or not provider:
+                return jsonify({'error': 'Name, email, company name, phone, and provider are required.'}), 400
 
             # Check if user with the email already exists
             existing_user = users_collection.find_one({'email': email})
@@ -134,7 +137,9 @@ def signup():
             result = users_collection.insert_one({
                 'name': name,
                 'email': email,
-                'company_name': company_name,  # Save company name
+                'company_name': company_name,
+                'phone': phone,  # Save phone number
+                'provider': provider,  # Save provider
                 'otp': otp_code,
                 'signup_date': datetime.now(pytz.utc),  # Add timestamp for when the user signs up
             })
@@ -145,7 +150,6 @@ def signup():
             return jsonify({'error': 'Invalid data format.'}), 400
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
 
 @app.route('/verify-otp', methods=['POST'])
 def verify_otp():
