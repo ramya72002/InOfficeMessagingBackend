@@ -105,6 +105,23 @@ def generate_otp():
 def home():
     return "Hello, Flask on Vercel!"
 
+@app.route('/create_post', methods=['POST'])
+def create_post():
+    data = request.json  # Get JSON data from the request
+    email = data.get('email')
+    phone = data.get('phone')
+
+    # Here you can add logic to save the data, e.g., to a database
+
+    response = {
+        "message": "Post created successfully!",
+        "data": {
+            "email": email,
+            "phone": phone
+        }
+    }
+    return jsonify(response), 201
+    
 @app.route('/signup', methods=['POST'])
 def signup():
     try:
@@ -198,56 +215,7 @@ def signin():
     else:
         return jsonify({'error': 'Email not registered. Please sign up.'}), 404
 
-@app.route('/postrecord', methods=['POST'])
-def post_record():
-    try:
-        data = request.get_json()
-        email = data.get('email')
-        title = data.get('title')
-        category = data.get('category')
-        date = data.get('date')
-        time = data.get('time')
-        image = data.get('image')  # Base64-encoded image
-
-        # Check for missing fields
-        if not email or not title or not category or not date or not time or not image:
-            return jsonify({'error': 'All fields are required.'}), 400
-
-        # Define the new record
-        new_record = {
-            'title': title,
-            'category': category,
-            'date': date,
-            'time': time,
-            'image': image,  # Store the image as base64
-            'created_at': datetime.now(pytz.utc)  # Timestamp for record creation
-        }
-
-        # Check if a user with the given email exists
-        user = users_collection.find_one({'email': email})
-
-        if user:
-            # If the 'records' field exists, append the new record to it
-            if 'records' in user:
-                users_collection.update_one(
-                    {'email': email},
-                    {'$push': {'records': new_record}}
-                )
-            else:
-                # If 'records' field does not exist, create it and add the new record
-                users_collection.update_one(
-                    {'email': email},
-                    {'$set': {'records': [new_record]}}
-                )
-        else:
-            # If the user does not exist, return an error
-            return jsonify({'error': 'User not found.'}), 404
-
-        return jsonify({'success': True, 'message': 'Record stored successfully.'}), 201
-
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
+ 
 @app.route('/getrecords', methods=['GET'])
 def get_records():
     try:
