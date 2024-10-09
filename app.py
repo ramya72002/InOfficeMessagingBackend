@@ -1,4 +1,6 @@
 'use client'
+import email,ssl
+from providers import PROVIDERS
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from datetime import datetime, timedelta
@@ -26,6 +28,48 @@ client = MongoClient(mongo_uri)
 db = client.InOfficeMessaging
 users_collection = db.users
 
+def send_sms_via_email(
+    number: str,
+    message: str,
+    provider: str,
+    sender_credentials: tuple,
+    subject: str = "NVision InOffice Messaging",
+    smtp_server: str = "smtp.gmail.com",
+    smtp_port: int = 465,
+):
+    sender_email, email_password = sender_credentials
+    receiver_email = f'{number}@{PROVIDERS.get(provider).get("sms")}'
+
+    email_message = f"Subject:{subject}\nTo:{receiver_email}\n{message}"
+     # Send the message via an SSL connection
+    try:
+
+        with smtplib.SMTP_SSL(
+            smtp_server, smtp_port, context=ssl.create_default_context()
+        ) as email:
+            email.login(sender_email, email_password)
+            email.sendmail(sender_email, receiver_email, email_message)
+        return True
+    except Exception as e:
+        print(f"Failed to send email: {e}")
+        return False
+
+# Flask route to trigger SMS sending
+@app.route('/send_sms', methods=['POST'])
+def send_sms():
+    data = request.json
+    numbers = data.get("numbers", [])
+    message = data.get("message", "No message provided")
+    provider = data.get("provider", "AT&T")  # Default to AT&T
+    sender_credentials = ("nvisionwebsiterequest@gmail.com", "zuek mepr tfel opvg")
+
+    # Send SMS to each number
+    for number in numbers:
+        success = send_sms_via_email(number, message, provider, sender_credentials)
+        if not success:
+            return jsonify({"error": f"Failed to send SMS to {number}"}), 500
+
+    return jsonify({"status": "SMS sent successfully"}), 200
 
 def send_otp_email(email, otp):
     try:
