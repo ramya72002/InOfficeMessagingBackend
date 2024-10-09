@@ -266,7 +266,18 @@ def get_records():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/getr', methods=['GET'])
+def get_r():
+    try:
+        s=123456 # Get email from query params
+ 
+        return jsonify(s), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
     
+
 @app.route('/get_forms_company_name', methods=['GET'])
 def get_forms_by_company_name():
     try:
