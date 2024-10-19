@@ -304,8 +304,8 @@ def send_message():
         return jsonify({'success': True, 'message': 'Message sent successfully!'}), 200
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
-        
-          
+
+
 @app.route('/get_conversation', methods=['GET'])
 def get_conversation():
     try:
@@ -347,4 +347,4 @@ def get_user_conversations():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=80)
+    app.run()
