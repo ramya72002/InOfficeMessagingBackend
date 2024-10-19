@@ -270,7 +270,7 @@ def get_forms_by_company_name():
 @app.route('/send_message', methods=['POST'])
 def send_message():
     data = request.get_json()
-    
+
     # Check if data is received correctly
     if data is None:
         return jsonify({'success': False, 'error': 'No data received'}), 400
@@ -284,12 +284,19 @@ def send_message():
     if not sender or not receiver or not message or not timestamp:
         return jsonify({'success': False, 'error': 'Missing required fields'}), 400
 
+    # Attempt to parse the timestamp
+    try:
+        # Assuming the timestamp format is 'YYYY-MM-DD hh:mm AM/PM'
+        timestamp = datetime.strptime(timestamp, "%Y-%m-%d %I:%M %p")  # Handle the new format
+    except ValueError:
+        return jsonify({'success': False, 'error': 'Invalid timestamp format. Use YYYY-MM-DD hh:mm AM/PM.'}), 400
+
     # Store the message in the database
     message_data = {
         'sender': sender,
         'receiver': receiver,
         'message': message,
-        'timestamp': datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S")  # Assuming timestamp is in this format
+        'timestamp': timestamp
     }
     
     try:
@@ -297,7 +304,8 @@ def send_message():
         return jsonify({'success': True, 'message': 'Message sent successfully!'}), 200
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
-
+        
+          
 @app.route('/get_conversation', methods=['GET'])
 def get_conversation():
     try:
