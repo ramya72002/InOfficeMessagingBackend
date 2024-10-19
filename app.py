@@ -27,6 +27,7 @@ mongo_uri = os.getenv('MONGO_URI')
 client = MongoClient(mongo_uri)
 db = client.InOfficeMessaging
 users_collection = db.users
+messages_collection=db.messages
 
 def send_sms_via_email(
     number: str,
@@ -264,6 +265,78 @@ def get_forms_by_company_name():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+        
+#messages
+@app.route('/send_message', methods=['POST'])
+def send_message():
+    data = request.get_json()
     
+    # Check if data is received correctly
+    if data is None:
+        return jsonify({'success': False, 'error': 'No data received'}), 400
+
+    sender = data.get('sender')
+    receiver = data.get('receiver')
+    message = data.get('message')
+    timestamp = data.get('timestamp')
+
+    # Validate required fields
+    if not sender or not receiver or not message or not timestamp:
+        return jsonify({'success': False, 'error': 'Missing required fields'}), 400
+
+    # Store the message in the database
+    message_data = {
+        'sender': sender,
+        'receiver': receiver,
+        'message': message,
+        'timestamp': datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S")  # Assuming timestamp is in this format
+    }
+    
+    try:
+        messages_collection.insert_one(message_data)  # Insert the message into the collection
+        return jsonify({'success': True, 'message': 'Message sent successfully!'}), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/get_conversation', methods=['GET'])
+def get_conversation():
+    try:
+        sender = request.args.get('sender')
+        receiver = request.args.get('receiver')
+
+        if not sender or not receiver:
+            return jsonify({'error': 'Sender and receiver are required.'}), 400
+
+        # Fetch messages where the sender and receiver are involved in the conversation
+        conversation = list(messages_collection.find({
+            '$or': [
+                {'sender': sender, 'receiver': receiver},
+                {'sender': receiver, 'receiver': sender}
+            ]
+        }).sort('timestamp', 1))  # Sort messages by timestamp (ascending)
+
+        # Return the conversation
+        for msg in conversation:
+            msg['_id'] = str(msg['_id'])  # Convert ObjectId to string for JSON serialization
+
+        return jsonify({'success': True, 'conversation': conversation}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/get_user_conversations', methods=['GET'])
+def get_user_conversations():
+    try:
+        user_email = request.args.get('email')
+
+        if not user_email:
+            return jsonify({'error': 'Email is required.'}), 400
+
+        # Fetch distinct conversation partners
+        contacts = messages_collection.distinct('receiver', {'sender': user_email}) + \
+                   messages_collection.distinct('sender', {'receiver': user_email})
+
+        return jsonify({'success': True, 'contacts': list(set(contacts))}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=80)
