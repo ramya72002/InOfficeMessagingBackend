@@ -1,5 +1,7 @@
 'use client'
 import email,ssl
+
+from bson import ObjectId
 from providers import PROVIDERS
 from flask import Flask, jsonify, request
 from flask_cors import CORS
@@ -28,6 +30,8 @@ client = MongoClient(mongo_uri)
 db = client.InOfficeMessaging
 users_collection = db.users
 messages_collection=db.messages
+groups_collection = db.groups
+group_messages_collection = db.group_messages
 
 def send_sms_via_email(
     number: str,
@@ -304,8 +308,8 @@ def send_message():
         return jsonify({'success': True, 'message': 'Message sent successfully!'}), 200
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
-
-
+        
+          
 @app.route('/get_conversation', methods=['GET'])
 def get_conversation():
     try:
@@ -346,5 +350,126 @@ def get_user_conversations():
         return jsonify({'success': True, 'contacts': list(set(contacts))}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+# 1. Create Group
+@app.route('/create_group', methods=['POST'])
+def create_group():
+    try:
+        data = request.get_json()
+        group_name = data.get('group_name')
+        members = data.get('members', [])  # List of user emails or IDs
+        print(group_name,members)
+        
+        if not group_name or not members:
+            return jsonify({'error': 'Group name and members are required.'}), 400
+        
+        group_data = {
+            'group_name': group_name,
+            'members': members,
+            'created_at': datetime.utcnow()
+        }
+        
+        result = groups_collection.insert_one(group_data)
+        return jsonify({'success': True, 'group_id': str(result.inserted_id)}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# 2. Add Member to Group
+@app.route('/add_member', methods=['POST'])
+def add_member():
+    try:
+        data = request.get_json()
+        group_id = data.get('group_id')
+        new_member = data.get('new_member')
+        
+        if not group_id or not new_member:
+            return jsonify({'error': 'Group ID and new member are required.'}), 400
+        
+        # Add new member to the group
+        result = groups_collection.update_one(
+            {'_id': ObjectId(group_id)},
+            {'$addToSet': {'members': new_member}}  # Prevent duplicate members
+        )
+        
+        if result.matched_count == 0:
+            return jsonify({'error': 'Group not found.'}), 404
+        
+        return jsonify({'success': True, 'message': 'Member added to the group.'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# 3. Send Message to Group
+@app.route('/send_group_message', methods=['POST'])
+def send_group_message():
+    try:
+        data = request.get_json()
+        sender = data.get('sender')
+        group_id = data.get('group_id')
+        message = data.get('message')
+        timestamp = datetime.utcnow()
+
+        if not sender or not group_id or not message:
+            return jsonify({'error': 'Sender, group ID, and message are required.'}), 400
+        
+        # Check if group exists
+        group = groups_collection.find_one({'_id': ObjectId(group_id)})
+        if not group:
+            return jsonify({'error': 'Group not found.'}), 404
+        
+        # Insert the message into the group_messages collection
+        message_data = {
+            'group_id': ObjectId(group_id),
+            'sender': sender,
+            'message': message,
+            'timestamp': timestamp
+        }
+        
+        group_messages_collection.insert_one(message_data)
+        return jsonify({'success': True, 'message': 'Message sent to group.'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# 4. Get Group Messages
+@app.route('/get_group_messages', methods=['GET'])
+def get_group_messages():
+    try:
+        group_id = request.args.get('group_id')
+        
+        if not group_id:
+            return jsonify({'error': 'Group ID is required.'}), 400
+        
+        # Fetch messages for the specified group
+        messages = list(group_messages_collection.find({'group_id': ObjectId(group_id)}).sort('timestamp', 1))
+        
+        # Convert ObjectId to string for JSON serialization
+        for msg in messages:
+            msg['_id'] = str(msg['_id'])
+            msg['group_id'] = str(msg['group_id'])
+        
+        return jsonify({'success': True, 'messages': messages}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# 5. List Groups
+@app.route('/list_groups', methods=['GET'])
+def list_groups():
+    try:
+        user_email = request.args.get('email')
+        
+        if not user_email:
+            return jsonify({'error': 'User email is required.'}), 400
+        
+        # Find all groups the user is part of
+        groups = list(groups_collection.find({'members': user_email}, {'_id': 1, 'group_name': 1}))
+        
+        # Convert ObjectId to string for JSON serialization
+        for group in groups:
+            group['_id'] = str(group['_id'])
+        
+        return jsonify({'success': True, 'groups': groups}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 if __name__ == '__main__':
     app.run()
