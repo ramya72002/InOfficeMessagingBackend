@@ -300,7 +300,8 @@ def send_message():
         'sender': sender,
         'receiver': receiver,
         'message': message,
-        'timestamp': timestamp
+        'timestamp': timestamp,
+        'isRead': False  # New field to indicate unread status
     }
     
     try:
@@ -472,4 +473,4 @@ def list_groups():
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
-    app.run()
+    app.run(host='0.0.0.0', port=80)
