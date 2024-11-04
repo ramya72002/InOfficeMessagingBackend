@@ -336,6 +336,40 @@ def get_conversation():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/mark_as_read', methods=['POST'])
+def mark_as_read():
+    try:
+        data = request.get_json()
+        current_user = data.get('currentUser')  # Current logged-in user's email
+        sender = data.get('sender')  # Sender's email
+        receiver = data.get('receiver')  # Receiver's email
+        print(current_user,sender,receiver)
+        if not current_user or not sender or not receiver:
+            return jsonify({'error': 'Sender, receiver, and current user are required.'}), 400
+
+        # Ensure the current user is the receiver
+      
+        # Find the latest message sent from the sender to the receiver that is not read
+        latest_message = messages_collection.find_one(
+            {'sender': sender, 'receiver': receiver, 'isRead': False},
+            sort=[('timestamp', -1)]  # Sort to get the latest message
+        )
+        if(current_user==receiver):
+
+            if latest_message:
+                # Update the isRead field to true
+                messages_collection.update_one(
+                    {'_id': latest_message['_id']},
+                    {'$set': {'isRead': True}}
+                )
+                return jsonify({'success': True, 'message': 'Message marked as read.'}), 200
+            else:
+                return jsonify({'success': True, 'message': 'No unread messages found.'}), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/get_user_conversations', methods=['GET'])
 def get_user_conversations():
     try:
@@ -473,4 +507,4 @@ def list_groups():
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=80)
+    app.run()
